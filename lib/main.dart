@@ -1,10 +1,10 @@
 
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'config.dart';
+import 'elegirEmpresa.dart';
 
 void main() { //el arrancador
   runApp(const MyApp());
@@ -34,16 +34,14 @@ class _PantallaLoginState extends State<PantallaLogin> { //mi pantalla de login 
   final _LlaveForm = GlobalKey<FormState>();
   bool _contrasenaVisible = true; //verdadero por default
   String _usuario = ''; String _contrasena = ''; //para guardar esos parametros
+  bool _estaCargando = false; //indicador de login en false
   //
   @override
   Widget build(BuildContext context) {
-    Size size = MediaQuery
-        .of(context)
-        .size;
+    Size size = MediaQuery.of(context).size;
     double alto = size.height;
     double ancho = size.width;
-    double iconsLetra = (alto + ancho) /
-        4; //*0.08 para letras y 0.1 para iconos
+    double iconsLetra = (alto + ancho) / 4; //*0.08 para letras y 0.1 para iconos
     return Scaffold( //LA PANILLA
       body: SafeArea( //cuerpo
           child: Padding( //padding para alejarnos de los Bordes (estilo nada mas)
@@ -120,24 +118,23 @@ class _PantallaLoginState extends State<PantallaLogin> { //mi pantalla de login 
                           },
                         ),
                         //fin password
-                        SizedBox(height: 10),
+                        SizedBox(height: 30),
+                        _estaCargando? CircularProgressIndicator(): //aqui es un if comprimido
                         //boton iniciar sesion
                         ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               minimumSize: Size(ancho * 0.5, 50),
-                              foregroundColor: Theme
-                                  .of(context)
-                                  .colorScheme
-                                  .surface,
-                              backgroundColor: Theme
-                                  .of(context)
-                                  .colorScheme
-                                  .onSurface,
+                              foregroundColor: Theme.of(context).colorScheme.surface,
+                              backgroundColor: Theme.of(context).colorScheme.onSurface,
                             ),
                             onPressed: () async {
                               if (_LlaveForm.currentState!.validate()) {
                                 _LlaveForm.currentState!.save();
-                               await _login(_usuario, _contrasena);
+                                bool ingreso = await _login(_usuario, _contrasena);
+                                if (ingreso){
+                                  Navigator.push(context, MaterialPageRoute(builder: (context) => ElegirEmpresa()),
+                                  );
+                                }
                               }
                             },
                             child: Text('Iniciar Sesion',
@@ -152,15 +149,60 @@ class _PantallaLoginState extends State<PantallaLogin> { //mi pantalla de login 
       ),
     ); //fin Scaffold
   }
-  Future<void> _login(String usuario, String contrasena) async {
+
+  Future<bool> _login(String usuario, String contrasena) async {
     final url = Uri.parse('${Config.baseUrl}/auth/login/');
-    final response = await http.post(url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "username": usuario, "password": contrasena
-      })
-    );
-    print(response.body);
+    setState((){
+      _estaCargando = true; //primero se muestra el indicador de cargando
+    });
+    // 3 estados
+    try { //1= intento
+      final response = await http.post(url,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({
+            "username": usuario, "password": contrasena
+          })
+      );
+      if (response.statusCode == 200){
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Inicio Exitoso'),
+          ),
+        );
+        //guardar algunos datos importantes del responde
+        final bodyString = response.body; //el body de responde se va a esa variabvke
+        final Map<String, dynamic> datos = jsonDecode(bodyString); //se hace el decode y se lo mapea
+        _guardarDatos(datos); //void abajo
+        //fin del guardado
+        return true;
+      }else{
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Usuario o Contraseña Incorrecta'),
+          ),
+        );
+      }
+
+    }catch (valor) { //2= el error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${valor.toString()}'),
+        ),
+      );
+      return false;
+    }finally{ //3=como final
+      setState((){
+        _estaCargando = false; //para el indicador
+      });
+    }
+    return false;
+  }
+   Future<void> _guardarDatos(Map<String, dynamic> datos) async { //accede a los datos del htpps con  datos['Xcampo']
+    final save = await SharedPreferences.getInstance();
+    await save.setString('access', datos['access']);
+    await save.setString('username', datos['username']);
+    await save.setString('nombre', datos['nombre']);
+    await save.setString('apellido, ', datos['apellido']);
+    await save.setString('email',datos['email']);
   }
 }
-
