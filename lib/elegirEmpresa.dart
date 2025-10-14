@@ -7,7 +7,6 @@ import '/dashboard/dashboard.dart';
 
 class ElegirEmpresa extends StatefulWidget {
   const ElegirEmpresa({super.key});
-
   @override
   State<ElegirEmpresa> createState() => _ElegirEmpresaState();
 }
