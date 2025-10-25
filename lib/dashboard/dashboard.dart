@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../asientoContable/asientoContable.dart';
+import '../movimientoContable/verMovimientos.dart';
 
 class DashBoardUsuario extends StatefulWidget {
   const DashBoardUsuario({super.key});
@@ -45,10 +46,11 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
         title: Text('TuAppCotable'),
       ), //Kevin a aqui van las diferentes opciones de seleccionado dependiendo de las opciones
       body: _queOpcionSelecionada == '' ? Text('dashboard'): //mostrar dashboard
-      _queOpcionSelecionada == 'Asiento Contable' ?
+      _queOpcionSelecionada == 'Registrar Asiento' ?
       AsientoContable()
-          :_queOpcionSelecionada == 'Cuentas Contables' ? Text('Cuentas Contables')
-          :_queOpcionSelecionada == 'Movimientos Contables'? Text('Movimientos Contables') : Text('dashboard'),
+          :_queOpcionSelecionada == 'Ver Cuentas Contables' ? Text('Cuentas Contables')
+          :_queOpcionSelecionada == 'Ver Movimientos'?
+      verMovimientos() : Text('dashboard'),
       drawer: Drawer(
         width: ancho * 0.7,
         child: ListView(

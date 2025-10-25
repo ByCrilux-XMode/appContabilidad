@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-
 import '../config.dart';
 
 class AsientoContable extends StatefulWidget{
@@ -48,7 +47,9 @@ class _AsientoContableState extends State<AsientoContable> {
           'Authorization': 'Bearer $token',
         },
       );
+
       if (responseCuentas.statusCode == 200) {
+        print(responseCuentas.body);
         final data = jsonDecode(responseCuentas.body);
         final List<dynamic> results = data['results'];
         setState(() {
