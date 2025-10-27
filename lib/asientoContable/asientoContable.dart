@@ -278,80 +278,157 @@ class _AsientoContableState extends State<AsientoContable> {
     return filas;
   }
   @override
-  Widget build(BuildContext context) {
-    Size size = MediaQuery.of(context).size;
-    double alto = size.height;
-    double ancho = size.width;
-    double iconsLetra = (alto + ancho) / 4;
-    return       Form(
-        key: _llaveForm,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Crea un Asiento Contable', style: TextStyle(fontSize: iconsLetra * 0.08)),
-            SizedBox(height: iconsLetra * 0.05),
-            //inicio descripcion general asiento contable
-            TextFormField(controller: _descripcionGeneralController,
-              decoration: InputDecoration(
-                labelText: 'descripcion',hintText: 'ej: Asiento de apertura',
-                labelStyle: TextStyle(fontSize: iconsLetra * 0.08),
-                prefixIcon: Icon(Icons.description, size: iconsLetra * 0.1,),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10)
+Widget build(BuildContext context) {
+  Size size = MediaQuery.of(context).size;
+  double alto = size.height;
+  double ancho = size.width;
+  double iconsLetra = (alto + ancho) / 4;
+
+  return Form(
+    key: _llaveForm,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Título
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: iconsLetra * 0.02),
+          child: Text(
+            'Crea un Asiento Contable',
+            style: TextStyle(
+              fontSize: iconsLetra * 0.08,
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo[700],
+            ),
+          ),
+        ),
+        SizedBox(height: iconsLetra * 0.03),
+
+        // Descripción general
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: iconsLetra * 0.03),
+          child: TextFormField(
+            controller: _descripcionGeneralController,
+            decoration: InputDecoration(
+              labelText: 'Descripción',
+              hintText: 'Ej: Asiento de apertura',
+              labelStyle: TextStyle(fontSize: iconsLetra * 0.065),
+              prefixIcon: Icon(Icons.description, size: iconsLetra * 0.08),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+              filled: true,
+              fillColor: Colors.grey[100],
+            ),
+            validator: (textoDeEntrada) {
+              if (textoDeEntrada == null || textoDeEntrada.isEmpty) {
+                return 'Ingrese una descripción';
+              } else {
+                return null;
+              }
+            },
+          ),
+        ),
+        SizedBox(height: iconsLetra * 0.04),
+
+        // Movimientos con botones Añadir/Quitar
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: iconsLetra * 0.03),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Movimientos',
+                style: TextStyle(
+                  fontSize: iconsLetra * 0.07,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.indigo[600],
                 ),
               ),
-              validator: (textoDeEntrada){
-                if (textoDeEntrada == null || textoDeEntrada.isEmpty){
-                  return 'Ingrese una descripcion';
-                }else{
-                  return null;
-                }
-              },
-            ),
-            //fin descripcion asiento contable
-            SizedBox(height: iconsLetra * 0.05),
-            Wrap(
-              spacing: iconsLetra * 0.05,
-              children:[
-                Text('movimientos', style: TextStyle(fontSize: iconsLetra * 0.08)),
-                ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    onPressed:(){setState(() {
-                      _cantidadAsientos ++;
-                      _ajustarControladores();
-                    });},
-                    child: Text('Añadir',style: TextStyle(color: Theme.of(context).colorScheme.surface))
-                ),
-                _cantidadAsientos > 2 ? ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    onPressed:(){setState(() {
-                      if(_cantidadAsientos > 2) {
-                        _cantidadAsientos --;
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _cantidadAsientos++;
                         _ajustarControladores();
-                      }
-                    });},
-                    child: Text('Quitar',style: TextStyle(color: Theme.of(context).colorScheme.surface))
-                ): Text(''),
-              ],
+                      });
+                    },
+                    icon: Icon(Icons.add, size: iconsLetra * 0.06),
+                    label: Text('Añadir'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[600],
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  if (_cantidadAsientos > 2)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          if (_cantidadAsientos > 2) {
+                            _cantidadAsientos--;
+                            _ajustarControladores();
+                          }
+                        });
+                      },
+                      icon: Icon(Icons.remove, size: iconsLetra * 0.06),
+                      label: Text('Quitar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: iconsLetra * 0.03),
+
+        // Filas de movimientos
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: iconsLetra * 0.03),
+            child: Column(
+              children: _filaDeMovimientos(iconsLetra).map((fila) {
+                return Padding(
+                  padding: EdgeInsets.only(bottom: iconsLetra * 0.02),
+                  child: fila,
+                );
+              }).toList(),
             ),
-            SizedBox(height: iconsLetra * 0.05),
-            //inicio widget generador de filas
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.vertical,
-                child: Column( children: [
-                  ..._filaDeMovimientos(iconsLetra),
-                ]),
+          ),
+        ),
+
+        // Botón Guardar Asiento
+        Padding(
+          padding: EdgeInsets.all(iconsLetra * 0.04),
+          child: SizedBox(
+            width: double.infinity,
+            height: iconsLetra * 0.15,
+            child: ElevatedButton(
+              onPressed: _guardarAsiento,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo[700],
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15)),
+                elevation: 5,
+              ),
+              child: Text(
+                'Guardar Asiento',
+                style: TextStyle(
+                  fontSize: iconsLetra * 0.065,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
-            //inicio widget generador de filas
-            Padding(
-              padding: EdgeInsets.all(iconsLetra * 0.08),
-              child: ElevatedButton(
-                onPressed:_guardarAsiento,
-                child: Text('Guardar Asiento'),
-              ),
-            )
-          ],
-        )
-    );
-  }
+          ),
+        ),
+      ],
+    ),
+  );
+}
 }

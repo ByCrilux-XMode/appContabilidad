@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../asientoContable/asientoContable.dart';
 import '../movimientoContable/verMovimientos.dart';
+import '../cuentascontables/cuentacontable.dart';
 
 class DashBoardUsuario extends StatefulWidget {
   const DashBoardUsuario({super.key});
@@ -23,56 +24,203 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
     _cargarEmpresa();
   }
 
-  //inicio constructor de widgets
+  // Constructor de widgets mejorado con indicadores visuales
   Widget _miOpcion(String opcion){
-    return ListTile(
-      title: Text(opcion),
-      onTap: (){
-        setState(() {
-          _queOpcionSelecionada = opcion;
-        });
-      },
+    bool estaSeleccionada = _queOpcionSelecionada == opcion;
+    
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: estaSeleccionada ? Colors.blue.shade50 : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: estaSeleccionada ? Colors.blue.shade300 : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
+      child: ListTile(
+        leading: Icon(
+          _obtenerIcono(opcion),
+          color: estaSeleccionada ? Colors.blue.shade700 : Colors.grey.shade600,
+          size: 24,
+        ),
+        title: Text(
+          opcion,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: estaSeleccionada ? FontWeight.bold : FontWeight.normal,
+            color: estaSeleccionada ? Colors.blue.shade700 : Colors.grey.shade800,
+          ),
+        ),
+        trailing: estaSeleccionada 
+            ? Icon(Icons.check_circle, color: Colors.blue.shade700, size: 20)
+            : null,
+        onTap: (){
+          setState(() {
+            _queOpcionSelecionada = opcion;
+          });
+          // Cerrar el drawer automáticamente en dispositivos móviles
+          if (MediaQuery.of(context).size.width < 600) {
+            Navigator.pop(context);
+          }
+        },
+        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
     );
   }
-  //fin constructor de widgets
+
+  // Método para obtener iconos según la opción
+  IconData _obtenerIcono(String opcion) {
+    switch (opcion) {
+      case 'Registrar Asiento':
+        return Icons.add_circle_outline;
+      case 'Ver Cuentas Contables':
+        return Icons.account_balance_wallet;
+      case 'Ver Movimientos':
+        return Icons.list_alt;
+      default:
+        return Icons.dashboard;
+    }
+  }
+
+  // Widget para el contenido principal
+  Widget _contenidoPrincipal() {
+    if (_queOpcionSelecionada.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.dashboard, size: 80, color: Colors.grey.shade400),
+            SizedBox(height: 16),
+            Text(
+              'Bienvenido al Dashboard',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Selecciona una opción del menú para comenzar',
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    switch (_queOpcionSelecionada) {
+      case 'Registrar Asiento':
+        return AsientoContable();
+      case 'Ver Cuentas Contables':
+        return Cuentacontable();
+      case 'Ver Movimientos':
+        return verMovimientos();
+      default:
+        return Center(child: Text('Dashboard'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
     double alto = size.height;
     double ancho = size.width;
     double iconsLetra = (alto + ancho) / 4;
+    
     return Scaffold(
       appBar: AppBar(
-        title: Text('TuAppCotable'),
-      ), //Kevin a aqui van las diferentes opciones de seleccionado dependiendo de las opciones
-      body: _queOpcionSelecionada == '' ? Text('dashboard'): //mostrar dashboard
-      _queOpcionSelecionada == 'Registrar Asiento' ?
-      AsientoContable()
-          :_queOpcionSelecionada == 'Ver Cuentas Contables' ? Text('Cuentas Contables')
-          :_queOpcionSelecionada == 'Ver Movimientos'?
-      verMovimientos() : Text('dashboard'),
+        title: Text('TuAppContable'),
+        backgroundColor: Colors.blue.shade700,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        actions: [
+          // Indicador de opción seleccionada en el AppBar
+          if (_queOpcionSelecionada.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Row(
+                children: [
+                  Icon(_obtenerIcono(_queOpcionSelecionada), size: 20, color: Colors.white),
+                  SizedBox(width: 8),
+                  
+                ],
+              ),
+            ),
+        ],
+      ),
+      body: _contenidoPrincipal(),
       drawer: Drawer(
         width: ancho * 0.7,
-        child: ListView(
-          padding: EdgeInsets.zero,
+        child: Column(
           children: [
-            DrawerHeader (
+            // Header del Drawer
+            Container(
+              height: 160,
               decoration: BoxDecoration(
-                color: Colors.lightBlue.shade100,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.blue.shade700, Colors.blue.shade500],
+                ),
               ),
               child: Center(
-                child: Text(_nombreEmpresa ?? 'sin Empresa', style: TextStyle(
-                  fontSize: iconsLetra * 0.08,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.account_balance, size: 50, color: Colors.white),
+                    SizedBox(height: 8),
+                    Text(
+                      _nombreEmpresa ?? 'Sin Empresa',
+                      style: TextStyle(
+                        fontSize: iconsLetra * 0.06,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Dashboard Contable',
+                      style: TextStyle(
+                        fontSize: iconsLetra * 0.04,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
                 ),
-                ),
-              )
+              ),
             ),
-            for (var opcion in _menuOpciones) _miOpcion(opcion),
-          ]
-        )
+            // Lista de opciones
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                children: [
+                  for (var opcion in _menuOpciones) _miOpcion(opcion),
+                ],
+              ),
+            ),
+            // Footer del Drawer
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.grey.shade300)),
+              ),
+              child: Text(
+                'TuAppContable v1.0',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
       ),
-      onDrawerChanged:(open) async {
-        if(open){
+      onDrawerChanged: (open) async {
+        if (open) {
           final String nombre = await Config().obtenerDato('empresa_nombre');
           setState(() {
             _nombreEmpresa = nombre;
