@@ -46,11 +46,12 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
         title: Text('TuAppCotable'),
       ), //Kevin a aqui van las diferentes opciones de seleccionado dependiendo de las opciones
       body: _queOpcionSelecionada == '' ? Text('dashboard'): //mostrar dashboard
-      _queOpcionSelecionada == 'Registrar Asiento' ?
-      AsientoContable()
-          :_queOpcionSelecionada == 'Ver Cuentas Contables' ? Text('Cuentas Contables')
+      _queOpcionSelecionada == 'Registrar Asiento' ? //si la opcion seleccionada es registrar asiento entonces muestra AsientoContable()
+      AsientoContable() //pantalla de registrar asientos contables
+          :_queOpcionSelecionada == 'Ver Cuentas Contables' ? Text('Cuentas Contables') //reemplaza Text('Cuentas Contables') por lo que vaas a crear en /CuentasContables
           :_queOpcionSelecionada == 'Ver Movimientos'?
-      verMovimientos() : Text('dashboard'),
+      verMovimientos() //pantalla de ver los movimientos contables
+          : Text('dashboard'),
       drawer: Drawer(
         width: ancho * 0.7,
         child: ListView(
