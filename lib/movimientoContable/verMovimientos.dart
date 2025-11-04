@@ -3,8 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
-import '../estructuraDatosUtiles/movimientos.dart';
-class verMovimientos extends StatefulWidget{
+
+class verMovimientos extends StatefulWidget {
   const verMovimientos({super.key});
   @override
   State<verMovimientos> createState() => _verMovimientosState();
@@ -28,40 +28,51 @@ class _verMovimientosState extends State<verMovimientos> {
         child: _cantidadMovimientos == null
             ? const CircularProgressIndicator()
             : ListView.separated(
-          itemBuilder:(context, index){
-            String fechaOrifgonal = _listaMovimientos[index]['asiento']['fecha'];
-            DateTime fecha = DateTime.parse(fechaOrifgonal);
-            String fechaFormateada = DateFormat('EEEE dd MMMM, yyyy', 'es_ES').format(fecha);
-            return ListTile(
-              title: Text('${_listaMovimientos[index]['referencia']}',
-                style: TextStyle(fontSize: iconsLetra * 0.05,fontWeight: FontWeight.bold)
-              ),
-              leading: Text('N° ${_listaMovimientos[index]['asiento']['numero']}',
-                style: TextStyle(fontSize: iconsLetra * 0.05),),
-              subtitle: Column(
-                  spacing: 12,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Fecha: ${fechaFormateada}'),
-                    Text('Cuenta: ${_listaMovimientos[index]['cuenta']['nombre']}'),
-                    Wrap(
-                      spacing: iconsLetra*0.1,
+                itemBuilder: (context, index) {
+                  String fechaOrifgonal =
+                      _listaMovimientos[index]['asiento']['fecha'];
+                  DateTime fecha = DateTime.parse(fechaOrifgonal);
+                  String fechaFormateada = DateFormat(
+                    'EEEE dd MMMM, yyyy',
+                    'es_ES',
+                  ).format(fecha);
+                  return ListTile(
+                    title: Text(
+                      '${_listaMovimientos[index]['referencia']}',
+                      style: TextStyle(
+                        fontSize: iconsLetra * 0.05,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    leading: Text(
+                      'N° ${_listaMovimientos[index]['asiento']['numero']}',
+                      style: TextStyle(fontSize: iconsLetra * 0.05),
+                    ),
+                    subtitle: Column(
+                      spacing: 12,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Debe: ${_listaMovimientos[index]['debe']}'),
-                        Text('Haber: ${_listaMovimientos[index]['haber']}')
+                        Text('Fecha: ${fechaFormateada}'),
+                        Text(
+                          'Cuenta: ${_listaMovimientos[index]['cuenta']['nombre']}',
+                        ),
+                        Wrap(
+                          spacing: iconsLetra * 0.1,
+                          children: [
+                            Text('Debe: ${_listaMovimientos[index]['debe']}'),
+                            Text('Haber: ${_listaMovimientos[index]['haber']}'),
+                          ],
+                        ),
                       ],
-                    )
-                  ],
+                    ),
+                  );
+                },
+                separatorBuilder: (context, index) {
+                  return Divider();
+                },
+                itemCount: _cantidadMovimientos!,
               ),
-            );
-          },
-          separatorBuilder:(context, index){
-            return Divider();
-          } ,
-          itemCount: _cantidadMovimientos!,
-        ),
-
-      )
+      ),
     );
   }
 
@@ -83,7 +94,13 @@ class _verMovimientosState extends State<verMovimientos> {
   Future<void> _cargarMovimientos() async {
     final token = await Config().obtenerDato('access');
     final url = Uri.parse('${Config.baseUrl}/movimiento');
-    final response = await http.get(url, headers: {'Content-Type': 'application/json', 'Authorization':'Bearer $token'});
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
     if (response.statusCode == 200) {
       print('------------------------------------');
@@ -99,18 +116,21 @@ class _verMovimientosState extends State<verMovimientos> {
       });
 
       print('-----decodificado----------------------');
-      print(movimientosData[0]);
-      print('-----lsita movmimientos----------------------');
+      if (movimientosData.isNotEmpty) {
+        print(movimientosData[0]);
+      } else {
+        print('No hay movimientos para mostrar');
+      }
+      print('-----lista movimientos----------------------');
       print(_listaMovimientos);
       print('------------------------------------');
-    }else{
+    } else {
       print('------------------------------------');
       print('Error al cargar los movimientos');
       print(response.body);
       print('------------------------------------');
     }
   }
+
   //funciones fin
-
 }
-

@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../asientoContable/asientoContable.dart';
 import '../movimientoContable/verMovimientos.dart';
 import '../cuentascontables/cuentacontable.dart';
+import '../reportes/libroDiario.dart';
+import '../reportes/libroMayor.dart';
+import '../reportes/balanceGeneral.dart';
+import '../reportes/estadoResultados.dart';
 
 class DashBoardUsuario extends StatefulWidget {
   const DashBoardUsuario({super.key});
@@ -15,7 +18,15 @@ class DashBoardUsuario extends StatefulWidget {
 
 class _DashBoardUsuarioState extends State<DashBoardUsuario> {
   String? _nombreEmpresa = null;
-  List<String> _menuOpciones = ['Registrar Asiento', 'Ver Cuentas Contables', 'Ver Movimientos'];
+  List<String> _menuOpciones = [
+    'Registrar Asiento',
+    'Ver Cuentas Contables',
+    'Ver Movimientos',
+    'Libro Diario',
+    'Libro Mayor',
+    'Balance General',
+    'Estado de Resultados',
+  ];
   String _queOpcionSelecionada = '';
 
   @override
@@ -25,9 +36,9 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
   }
 
   // Constructor de widgets mejorado con indicadores visuales
-  Widget _miOpcion(String opcion){
+  Widget _miOpcion(String opcion) {
     bool estaSeleccionada = _queOpcionSelecionada == opcion;
-    
+
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -49,13 +60,15 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
           style: TextStyle(
             fontSize: 16,
             fontWeight: estaSeleccionada ? FontWeight.bold : FontWeight.normal,
-            color: estaSeleccionada ? Colors.blue.shade700 : Colors.grey.shade800,
+            color: estaSeleccionada
+                ? Colors.blue.shade700
+                : Colors.grey.shade800,
           ),
         ),
-        trailing: estaSeleccionada 
+        trailing: estaSeleccionada
             ? Icon(Icons.check_circle, color: Colors.blue.shade700, size: 20)
             : null,
-        onTap: (){
+        onTap: () {
           setState(() {
             _queOpcionSelecionada = opcion;
           });
@@ -65,9 +78,7 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
           }
         },
         contentPadding: EdgeInsets.symmetric(horizontal: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -81,6 +92,14 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
         return Icons.account_balance_wallet;
       case 'Ver Movimientos':
         return Icons.list_alt;
+      case 'Libro Diario':
+        return Icons.book;
+      case 'Libro Mayor':
+        return Icons.auto_stories;
+      case 'Balance General':
+        return Icons.assessment;
+      case 'Estado de Resultados':
+        return Icons.analytics;
       default:
         return Icons.dashboard;
     }
@@ -117,6 +136,14 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
         return Cuentacontable();
       case 'Ver Movimientos':
         return verMovimientos();
+      case 'Libro Diario':
+        return LibroDiario();
+      case 'Libro Mayor':
+        return LibroMayor();
+      case 'Balance General':
+        return BalanceGeneral();
+      case 'Estado de Resultados':
+        return EstadoResultados();
       default:
         return Center(child: Text('Dashboard'));
     }
@@ -128,7 +155,7 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
     double alto = size.height;
     double ancho = size.width;
     double iconsLetra = (alto + ancho) / 4;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Text('TuAppContable'),
@@ -142,9 +169,12 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
               padding: EdgeInsets.only(right: 16),
               child: Row(
                 children: [
-                  Icon(_obtenerIcono(_queOpcionSelecionada), size: 20, color: Colors.white),
+                  Icon(
+                    _obtenerIcono(_queOpcionSelecionada),
+                    size: 20,
+                    color: Colors.white,
+                  ),
                   SizedBox(width: 8),
-                  
                 ],
               ),
             ),
@@ -196,9 +226,7 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
             Expanded(
               child: ListView(
                 padding: EdgeInsets.symmetric(vertical: 16),
-                children: [
-                  for (var opcion in _menuOpciones) _miOpcion(opcion),
-                ],
+                children: [for (var opcion in _menuOpciones) _miOpcion(opcion)],
               ),
             ),
             // Footer del Drawer
@@ -209,10 +237,7 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
               ),
               child: Text(
                 'TuAppContable v1.0',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -234,31 +259,40 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
     final url = Uri.parse('${Config.baseUrl}/auth_empresa/login_empresa/');
     final token = await Config().obtenerDato('access');
     final empresaId = await Config().obtenerDato('empresa_id');
-    final responde = await http.post(url,
-        headers:
-        {
-          "Content-Type": "application/json",
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          "empresa_id": empresaId.toString(),
-        })
+    final responde = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({"empresa_id": empresaId.toString()}),
     );
     if (responde.statusCode == 200) {
       final Map<String, dynamic> dato = jsonDecode(responde.body);
       Config().GuardarAlgunDato('access', dato['access']);
       Config().GuardarAlgunDato('user_empresa', dato['user_empresa']);
       Config().GuardarAlgunDato('usuarioId', dato['usuario']['id']);
-      Config().GuardarAlgunDato('telefono', dato['usuario']['persona']['telefono']);
+      Config().GuardarAlgunDato(
+        'telefono',
+        dato['usuario']['persona']['telefono'],
+      );
       Config().GuardarAlgunDato('ci', dato['usuario']['persona']['telefono']);
       //roles y permisos
       Config().GuardarAlgunDato('roles', List<String>.from(dato['roles']));
       //aqui habran permisos
       //roles y permisos
-      Config().GuardarAlgunDato('colorPrimario', dato['custom']['color_primario']);
-      Config().GuardarAlgunDato('colorSecundario', dato['custom']['color_secundario']);
-      Config().GuardarAlgunDato('colorTerciario', dato['custom']['color_terciario']);
-
+      Config().GuardarAlgunDato(
+        'colorPrimario',
+        dato['custom']['color_primario'],
+      );
+      Config().GuardarAlgunDato(
+        'colorSecundario',
+        dato['custom']['color_secundario'],
+      );
+      Config().GuardarAlgunDato(
+        'colorTerciario',
+        dato['custom']['color_terciario'],
+      );
     } else {
       print('Error: ${responde.statusCode} - ${responde.body}');
     }
