@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../config.dart';
+import '../utils/export_helper.dart';
 
 class LibroDiario extends StatefulWidget {
   const LibroDiario({super.key});
@@ -135,6 +136,42 @@ class _LibroDiarioState extends State<LibroDiario> {
                   'Libro Diario',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.download),
+                tooltip: 'Exportar',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'pdf':
+                      _exportarPDF();
+                      break;
+                    case 'excel':
+                      _exportarExcel();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'pdf',
+                    child: Row(
+                      children: [
+                        Icon(Icons.picture_as_pdf, size: 18),
+                        SizedBox(width: 8),
+                        Text('Guardar PDF'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'excel',
+                    child: Row(
+                      children: [
+                        Icon(Icons.grid_on, size: 18),
+                        SizedBox(width: 8),
+                        Text('Guardar Excel'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               IconButton(
                 icon: const Icon(Icons.date_range),
@@ -427,6 +464,24 @@ class _LibroDiarioState extends State<LibroDiario> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _exportarPDF() async {
+    await ExportHelper.exportLibroDiarioPDF(
+      context: context,
+      asientos: _asientos,
+      fechaInicio: _fechaInicio,
+      fechaFin: _fechaFin,
+    );
+  }
+
+  Future<void> _exportarExcel() async {
+    await ExportHelper.exportLibroDiarioExcel(
+      context: context,
+      asientos: _asientos,
+      fechaInicio: _fechaInicio,
+      fechaFin: _fechaFin,
     );
   }
 }

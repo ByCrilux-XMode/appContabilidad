@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../config.dart';
+import '../utils/export_helper.dart';
 
 class EstadoResultados extends StatefulWidget {
   const EstadoResultados({super.key});
@@ -248,6 +249,42 @@ class _EstadoResultadosState extends State<EstadoResultados> {
                   'Estado de Resultados',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.download),
+                tooltip: 'Exportar',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'pdf':
+                      _exportarPDF();
+                      break;
+                    case 'excel':
+                      _exportarExcel();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'pdf',
+                    child: Row(
+                      children: [
+                        Icon(Icons.picture_as_pdf, size: 18),
+                        SizedBox(width: 8),
+                        Text('Guardar PDF'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'excel',
+                    child: Row(
+                      children: [
+                        Icon(Icons.grid_on, size: 18),
+                        SizedBox(width: 8),
+                        Text('Guardar Excel'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               IconButton(
                 icon: const Icon(Icons.date_range),
@@ -632,6 +669,40 @@ class _EstadoResultadosState extends State<EstadoResultados> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _exportarPDF() async {
+    await ExportHelper.exportEstadoResultadosPDF(
+      context: context,
+      ingresos: _ingresos,
+      costos: _costos,
+      gastos: _gastos,
+      totalIngresos: _totalIngresos,
+      totalCostos: _totalCostos,
+      totalGastos: _totalGastos,
+      utilidadBruta: _utilidadBruta,
+      utilidadOperativa: _utilidadOperativa,
+      utilidadNeta: _utilidadNeta,
+      fechaInicio: _fechaInicio,
+      fechaFin: _fechaFin,
+    );
+  }
+
+  Future<void> _exportarExcel() async {
+    await ExportHelper.exportEstadoResultadosExcel(
+      context: context,
+      ingresos: _ingresos,
+      costos: _costos,
+      gastos: _gastos,
+      totalIngresos: _totalIngresos,
+      totalCostos: _totalCostos,
+      totalGastos: _totalGastos,
+      utilidadBruta: _utilidadBruta,
+      utilidadOperativa: _utilidadOperativa,
+      utilidadNeta: _utilidadNeta,
+      fechaInicio: _fechaInicio,
+      fechaFin: _fechaFin,
     );
   }
 }

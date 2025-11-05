@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../config.dart';
+import '../utils/export_helper.dart';
 
 class LibroMayor extends StatefulWidget {
   const LibroMayor({super.key});
@@ -172,6 +173,42 @@ class _LibroMayorState extends State<LibroMayor> {
                   'Libro Mayor',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.download),
+                tooltip: 'Exportar',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'pdf':
+                      _exportarPDF();
+                      break;
+                    case 'excel':
+                      _exportarExcel();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'pdf',
+                    child: Row(
+                      children: [
+                        Icon(Icons.picture_as_pdf, size: 18),
+                        SizedBox(width: 8),
+                        Text('Guardar PDF'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'excel',
+                    child: Row(
+                      children: [
+                        Icon(Icons.grid_on, size: 18),
+                        SizedBox(width: 8),
+                        Text('Guardar Excel'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               IconButton(
                 icon: const Icon(Icons.date_range),
@@ -644,6 +681,28 @@ class _LibroMayorState extends State<LibroMayor> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _exportarPDF() async {
+    await ExportHelper.exportLibroMayorPDF(
+      context: context,
+      cuentas: _cuentas,
+      movimientosPorCuenta: _movimientosPorCuenta,
+      fechaInicio: _fechaInicio,
+      fechaFin: _fechaFin,
+      cuentaSeleccionadaId: _cuentaSeleccionada,
+    );
+  }
+
+  Future<void> _exportarExcel() async {
+    await ExportHelper.exportLibroMayorExcel(
+      context: context,
+      cuentas: _cuentas,
+      movimientosPorCuenta: _movimientosPorCuenta,
+      fechaInicio: _fechaInicio,
+      fechaFin: _fechaFin,
+      cuentaSeleccionadaId: _cuentaSeleccionada,
     );
   }
 }

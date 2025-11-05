@@ -135,7 +135,7 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
       case 'Ver Cuentas Contables':
         return Cuentacontable();
       case 'Ver Movimientos':
-        return verMovimientos();
+        return VerMovimientos();
       case 'Libro Diario':
         return LibroDiario();
       case 'Libro Mayor':
@@ -294,7 +294,7 @@ class _DashBoardUsuarioState extends State<DashBoardUsuario> {
         dato['custom']['color_terciario'],
       );
     } else {
-      print('Error: ${responde.statusCode} - ${responde.body}');
+      debugPrint('Error: ${responde.statusCode} - ${responde.body}');
     }
   }
 }

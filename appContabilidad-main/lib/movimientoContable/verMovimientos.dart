@@ -6,6 +6,7 @@ import 'package:movil/config.dart';
 
 class VerMovimientos extends StatefulWidget {
   const VerMovimientos({super.key});
+
   @override
   State<VerMovimientos> createState() => _VerMovimientosState();
 }
@@ -78,12 +79,14 @@ class _VerMovimientosState extends State<VerMovimientos> {
 
   @override
   void initState() {
+    // TODO: implement initState
     _cargarMovimientos();
     super.initState();
   }
 
   @override
   void dispose() {
+    // TODO: implement dispose
     super.dispose();
   }
   //pantalla fin
@@ -116,8 +119,6 @@ class _VerMovimientosState extends State<VerMovimientos> {
       debugPrint('-----decodificado----------------------');
       if (movimientosData.isNotEmpty) {
         debugPrint(movimientosData[0].toString());
-      } else {
-        debugPrint('No hay movimientos para mostrar');
       }
       debugPrint('-----lista movimientos----------------------');
       debugPrint(_listaMovimientos.toString());
@@ -129,6 +130,5 @@ class _VerMovimientosState extends State<VerMovimientos> {
       debugPrint('------------------------------------');
     }
   }
-
   //funciones fin
 }
