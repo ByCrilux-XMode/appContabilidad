@@ -18,6 +18,17 @@ class _LibroDiarioState extends State<LibroDiario> {
   DateTime? _fechaInicio;
   DateTime? _fechaFin;
 
+  // Convierte dynamic (num o String) a double de forma segura
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final s = v.replaceAll(',', '').trim();
+      return double.tryParse(s) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -28,7 +39,9 @@ class _LibroDiarioState extends State<LibroDiario> {
     setState(() => _cargando = true);
     try {
       final token = await Config().obtenerDato('access');
-      String url = '${Config.baseUrl}/asiento_contable/';
+
+      // Usar el endpoint específico del backend: /libro_diario/
+      String url = '${Config.baseUrl}/libro_diario/';
 
       // Agregar filtros de fecha si existen
       if (_fechaInicio != null && _fechaFin != null) {
@@ -37,7 +50,7 @@ class _LibroDiarioState extends State<LibroDiario> {
         url += '?fecha_inicio=$inicio&fecha_fin=$fin';
       }
 
-      print('Cargando asientos desde: $url');
+      print('🔍 Cargando Libro Diario desde: $url');
 
       final response = await http.get(
         Uri.parse(url),
@@ -47,18 +60,74 @@ class _LibroDiarioState extends State<LibroDiario> {
         },
       );
 
-      print('Status Code: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      print('📊 Libro Diario Status Code: ${response.statusCode}');
+      print('📄 Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final asientos = List<Map<String, dynamic>>.from(data['results'] ?? []);
-        print('Asientos cargados: ${asientos.length}');
+
+        // El backend devuelve: {"results": [...], "totales": {"debe_total": X, "haber_total": Y}}
+        final results = data['results'] as List<dynamic>? ?? [];
+        final totales = data['totales'] as Map<String, dynamic>? ?? {};
+
+        print('✅ Movimientos recibidos: ${results.length}');
+        print('✅ Totales: ${totales}');
+
+        // Agrupar movimientos por asiento
+        Map<String, List<Map<String, dynamic>>> movimientosPorAsiento = {};
+
+        for (var movimiento in results) {
+          final asientoId = movimiento['asiento']?['id']?.toString() ?? '';
+
+          if (!movimientosPorAsiento.containsKey(asientoId)) {
+            movimientosPorAsiento[asientoId] = [];
+          }
+
+          // Asegurar que el movimiento tenga la estructura correcta
+          // El backend devuelve: {id, referencia, debe, haber, cuenta:{id,codigo,nombre}, asiento:{id,numero,fecha}}
+          movimientosPorAsiento[asientoId]!.add({
+            'id': movimiento['id'],
+            'referencia': movimiento['referencia'],
+            'debe': movimiento['debe'],
+            'haber': movimiento['haber'],
+            'cuenta': movimiento['cuenta'], // {id, codigo, nombre}
+            'asiento': movimiento['asiento'], // {id, numero, fecha}
+          });
+        }
+
+        // Crear estructura de asientos
+        List<Map<String, dynamic>> asientos = [];
+
+        for (var entry in movimientosPorAsiento.entries) {
+          final movimientos = entry.value;
+          if (movimientos.isNotEmpty) {
+            final primerMovimiento = movimientos.first;
+            final asientoInfo =
+                primerMovimiento['asiento'] as Map<String, dynamic>? ?? {};
+
+            asientos.add({
+              'id': asientoInfo['id'],
+              'numero': asientoInfo['numero'],
+              'fecha': asientoInfo['fecha'],
+              'descripcion': asientoInfo['descripcion'] ?? '',
+              'movimientos': movimientos,
+            });
+          }
+        }
+
+        // Ordenar por fecha
+        asientos.sort((a, b) {
+          final fechaA = a['fecha']?.toString() ?? '';
+          final fechaB = b['fecha']?.toString() ?? '';
+          return fechaA.compareTo(fechaB);
+        });
 
         setState(() {
           _asientos = asientos;
           _cargando = false;
         });
+
+        print('✅ Asientos procesados: ${_asientos.length}');
       } else {
         throw Exception('Error ${response.statusCode}: ${response.body}');
       }
@@ -251,8 +320,8 @@ class _LibroDiarioState extends State<LibroDiario> {
     double totalDebe = 0;
     double totalHaber = 0;
     for (var mov in movimientos) {
-      totalDebe += (mov['debe'] ?? 0).toDouble();
-      totalHaber += (mov['haber'] ?? 0).toDouble();
+      totalDebe += _toDouble(mov['debe']);
+      totalHaber += _toDouble(mov['haber']);
     }
 
     return Card(
@@ -371,10 +440,10 @@ class _LibroDiarioState extends State<LibroDiario> {
                                   locale: 'es_BO',
                                   symbol: 'Bs.',
                                   decimalDigits: 2,
-                                ).format(mov['debe'] ?? 0),
+                                ).format(_toDouble(mov['debe'])),
                                 textAlign: TextAlign.right,
                                 style: TextStyle(
-                                  color: (mov['debe'] ?? 0) > 0
+                                  color: _toDouble(mov['debe']) > 0
                                       ? Colors.green.shade700
                                       : Colors.grey,
                                 ),
@@ -388,10 +457,10 @@ class _LibroDiarioState extends State<LibroDiario> {
                                   locale: 'es_BO',
                                   symbol: 'Bs.',
                                   decimalDigits: 2,
-                                ).format(mov['haber'] ?? 0),
+                                ).format(_toDouble(mov['haber'])),
                                 textAlign: TextAlign.right,
                                 style: TextStyle(
-                                  color: (mov['haber'] ?? 0) > 0
+                                  color: _toDouble(mov['haber']) > 0
                                       ? Colors.red.shade700
                                       : Colors.grey,
                                 ),

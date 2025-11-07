@@ -28,6 +28,17 @@ class _EstadoResultadosState extends State<EstadoResultados> {
   double _utilidadOperativa = 0;
   double _utilidadNeta = 0;
 
+  // Convierte dynamic (num o String) a double de forma segura
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final s = v.replaceAll(',', '').trim();
+      return double.tryParse(s) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,109 +57,93 @@ class _EstadoResultadosState extends State<EstadoResultados> {
     try {
       final token = await Config().obtenerDato('access');
 
-      // Cargar todas las cuentas
-      print('Cargando cuentas desde: ${Config.baseUrl}/cuenta');
-      final responseCuentas = await http.get(
-        Uri.parse('${Config.baseUrl}/cuenta'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      // Usar el endpoint específico del backend: /estado_resultados/
+      String urlEstadoResultados = '${Config.baseUrl}/estado_resultados/';
 
-      print('Cuentas Status Code: ${responseCuentas.statusCode}');
-
-      if (responseCuentas.statusCode != 200) {
-        throw Exception(
-          'Error ${responseCuentas.statusCode}: ${responseCuentas.body}',
-        );
-      }
-
-      final dataCuentas = jsonDecode(responseCuentas.body);
-      final cuentas = List<Map<String, dynamic>>.from(
-        dataCuentas['results'] ?? [],
-      );
-      print('Cuentas cargadas: ${cuentas.length}');
-
-      // Cargar movimientos del período
-      String urlMovimientos = '${Config.baseUrl}/movimiento';
+      // Agregar parámetros de fecha
       if (_fechaInicio != null && _fechaFin != null) {
         final inicio = DateFormat('yyyy-MM-dd').format(_fechaInicio!);
         final fin = DateFormat('yyyy-MM-dd').format(_fechaFin!);
-        urlMovimientos += '?fecha_inicio=$inicio&fecha_fin=$fin';
+        urlEstadoResultados += '?fecha_inicio=$inicio&fecha_fin=$fin';
       }
 
-      print('Cargando movimientos desde: $urlMovimientos');
-      final responseMovimientos = await http.get(
-        Uri.parse(urlMovimientos),
+      print('🔍 Cargando Estado de Resultados desde: $urlEstadoResultados');
+
+      final response = await http.get(
+        Uri.parse(urlEstadoResultados),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
-      print('Movimientos Status Code: ${responseMovimientos.statusCode}');
+      print('📊 Estado de Resultados Status Code: ${response.statusCode}');
 
-      if (responseMovimientos.statusCode != 200) {
-        throw Exception(
-          'Error ${responseMovimientos.statusCode}: ${responseMovimientos.body}',
-        );
+      if (response.statusCode != 200) {
+        throw Exception('Error ${response.statusCode}: ${response.body}');
       }
 
-      final dataMovimientos = jsonDecode(responseMovimientos.body);
-      final movimientos = List<Map<String, dynamic>>.from(
-        dataMovimientos['results'] ?? [],
-      );
-      print('Movimientos cargados: ${movimientos.length}');
+      // El backend devuelve: {"data": [...], "total_ingresos": X, "total_costos": Y, "utilidad": Z}
+      final jsonResponse = jsonDecode(response.body);
 
-      // Calcular saldos por cuenta
-      Map<String, double> saldosPorCuenta = {};
-      for (var movimiento in movimientos) {
-        final cuentaId = movimiento['cuenta']?['id']?.toString();
-        if (cuentaId != null) {
-          if (!saldosPorCuenta.containsKey(cuentaId)) {
-            saldosPorCuenta[cuentaId] = 0;
-          }
-          final debe = (movimiento['debe'] ?? 0).toDouble();
-          final haber = (movimiento['haber'] ?? 0).toDouble();
-          // Para cuentas de resultados, el saldo es la diferencia
-          saldosPorCuenta[cuentaId] = saldosPorCuenta[cuentaId]! + debe - haber;
-        }
-      }
+      _totalIngresos = _toDouble(jsonResponse['total_ingresos']);
+      _totalCostos = _toDouble(jsonResponse['total_costos']);
+      _totalGastos = _toDouble(jsonResponse['total_gastos']);
 
-      // Clasificar cuentas
+      print('✅ Total Ingresos: $_totalIngresos');
+      print('✅ Total Costos: $_totalCostos');
+      print('✅ Total Gastos: $_totalGastos');
+
+      // Procesar la estructura data (clases con hijos)
+      final data = jsonResponse['data'] as List<dynamic>? ?? [];
+
       _ingresos = [];
       _gastos = [];
       _costos = [];
-      _totalIngresos = 0;
-      _totalGastos = 0;
-      _totalCostos = 0;
 
-      for (var cuenta in cuentas) {
-        final cuentaId = cuenta['id'].toString();
-        final saldo = saldosPorCuenta[cuentaId] ?? 0;
+      // Función recursiva para extraer cuentas
+      void extraerCuentas(
+        Map<String, dynamic> nodo,
+        List<Map<String, dynamic>> destino,
+      ) {
+        final codigo = nodo['codigo']?.toString() ?? '';
+        final nombre = nodo['nombre']?.toString() ?? '';
+        final net = _toDouble(nodo['net']);
+        final totalDebe = _toDouble(nodo['total_debe']);
+        final totalHaber = _toDouble(nodo['total_haber']);
 
-        // Solo incluir cuentas con movimiento en el período
-        if (saldo.abs() > 0.01) {
-          final tipoCuenta =
-              cuenta['tipo_cuenta']?.toString().toLowerCase() ?? '';
-          final nombre = cuenta['nombre']?.toString().toLowerCase() ?? '';
-          final cuentaConSaldo = {...cuenta, 'saldo': saldo.abs()};
+        // Agregar cuenta actual
+        if (net.abs() > 0.01) {
+          destino.add({
+            'codigo': codigo,
+            'nombre': nombre,
+            'saldo': net.abs(),
+            'total_debe': totalDebe,
+            'total_haber': totalHaber,
+          });
+        }
 
-          // Clasificar según tipo de cuenta
-          if (tipoCuenta.contains('ingreso') ||
-              nombre.contains('ingreso') ||
-              nombre.contains('venta') ||
-              tipoCuenta.contains('ingreso')) {
-            _ingresos.add(cuentaConSaldo);
-            // Los ingresos normalmente tienen saldo acreedor (negativo)
-            _totalIngresos += saldo.abs();
-          } else if (tipoCuenta.contains('gasto') || nombre.contains('gasto')) {
-            _gastos.add(cuentaConSaldo);
-            _totalGastos += saldo.abs();
-          } else if (tipoCuenta.contains('costo') || nombre.contains('costo')) {
-            _costos.add(cuentaConSaldo);
-            _totalCostos += saldo.abs();
+        // Procesar hijos
+        final hijos = nodo['hijos'] as List<dynamic>?;
+        if (hijos != null) {
+          for (var hijo in hijos) {
+            extraerCuentas(hijo as Map<String, dynamic>, destino);
+          }
+        }
+      }
+
+      for (var clase in data) {
+        final codigo = clase['codigo']?.toString() ?? '';
+
+        // Código 4 = Ingresos, Código 5 = Costos/Gastos
+        if (codigo.startsWith('4')) {
+          extraerCuentas(clase, _ingresos);
+        } else if (codigo.startsWith('5')) {
+          final nombre = clase['nombre']?.toString().toLowerCase() ?? '';
+          if (nombre.contains('costo')) {
+            extraerCuentas(clase, _costos);
+          } else {
+            extraerCuentas(clase, _gastos);
           }
         }
       }
@@ -156,20 +151,11 @@ class _EstadoResultadosState extends State<EstadoResultados> {
       // Calcular utilidades
       _utilidadBruta = _totalIngresos - _totalCostos;
       _utilidadOperativa = _utilidadBruta - _totalGastos;
-      _utilidadNeta =
-          _utilidadOperativa; // Aquí se podrían agregar otros ajustes
+      _utilidadNeta = _utilidadOperativa;
 
-      // Ordenar por código
-      _ingresos.sort(
-        (a, b) => (a['codigo'] ?? '').compareTo(b['codigo'] ?? ''),
-      );
-      _costos.sort((a, b) => (a['codigo'] ?? '').compareTo(b['codigo'] ?? ''));
-      _gastos.sort((a, b) => (a['codigo'] ?? '').compareTo(b['codigo'] ?? ''));
-
-      print(
-        'Ingresos: ${_ingresos.length}, Costos: ${_costos.length}, Gastos: ${_gastos.length}',
-      );
-      print('Utilidad Neta: Bs. ${_utilidadNeta.toStringAsFixed(2)}');
+      print('✅ Utilidad Bruta: $_utilidadBruta');
+      print('✅ Utilidad Operativa: $_utilidadOperativa');
+      print('✅ Utilidad Neta: $_utilidadNeta');
 
       if (!mounted) return;
       setState(() => _cargando = false);
@@ -422,7 +408,7 @@ class _EstadoResultadosState extends State<EstadoResultados> {
             )
           else
             ...cuentas.map((cuenta) {
-              final saldo = (cuenta['saldo'] ?? 0).toDouble();
+              final saldo = _toDouble(cuenta['saldo']);
               return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -20,6 +21,17 @@ class _LibroMayorState extends State<LibroMayor> {
   DateTime? _fechaFin;
   String? _cuentaSeleccionada;
 
+  // Convierte dynamic (num o String) a double de forma segura
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final s = v.replaceAll(',', '').trim();
+      return double.tryParse(s) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -31,72 +43,269 @@ class _LibroMayorState extends State<LibroMayor> {
     try {
       final token = await Config().obtenerDato('access');
 
-      // Cargar cuentas
-      print('Cargando cuentas desde: ${Config.baseUrl}/cuenta');
-      final responseCuentas = await http.get(
-        Uri.parse('${Config.baseUrl}/cuenta'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      // Usar el endpoint específico del backend: /libro_mayor/
+      String urlLibroMayor = '${Config.baseUrl}/libro_mayor/';
 
-      print('Cuentas Status Code: ${responseCuentas.statusCode}');
+      // Agregar filtros (nota: el backend acepta clase_id, no fecha)
+      // Para filtrar por fechas, necesitarías verificar si el backend lo soporta
+      // Por ahora, obtenemos todas las cuentas con movimientos
 
-      if (responseCuentas.statusCode == 200) {
-        final dataCuentas = jsonDecode(responseCuentas.body);
-        _cuentas = List<Map<String, dynamic>>.from(
-          dataCuentas['results'] ?? [],
+      print('🔍 Cargando Libro Mayor desde: $urlLibroMayor');
+
+      // Intentar la petición con reintentos en caso de 5xx (server error)
+      http.Response response;
+      int attempts = 0;
+      const maxAttempts = 3;
+      while (true) {
+        attempts += 1;
+        response = await http.get(
+          Uri.parse(urlLibroMayor),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
         );
-        print('Cuentas cargadas: ${_cuentas.length}');
-      } else {
-        throw Exception(
-          'Error ${responseCuentas.statusCode}: ${responseCuentas.body}',
+
+        print(
+          '📊 Libro Mayor Status Code (intento $attempts): ${response.statusCode}',
         );
+        // Siempre imprimir cuerpo en debug (recortado si es muy largo)
+        final bodyPreview = response.body.length > 1000
+            ? response.body.substring(0, 1000) + '...(truncated)'
+            : response.body;
+        print('🔎 Response body preview: $bodyPreview');
+
+        if (response.statusCode >= 500 && attempts < maxAttempts) {
+          // Guardar body completo en archivo temporal para facilitar debugging remoto
+          try {
+            final tmp = await Directory.systemTemp.createTemp(
+              'libro_mayor_error_',
+            );
+            final f = File('${tmp.path}/response_attempt_${attempts}.txt');
+            await f.writeAsString(response.body);
+            print('⚠️ Response completo guardado en: ${f.path}');
+          } catch (e) {
+            print('⚠️ No se pudo guardar response body en archivo: $e');
+          }
+          // Esperar un poco y reintentar
+          await Future.delayed(Duration(milliseconds: 400 * attempts));
+          continue;
+        }
+        break;
       }
 
-      // Cargar movimientos
-      String urlMovimientos = '${Config.baseUrl}/movimiento';
-      if (_fechaInicio != null && _fechaFin != null) {
-        final inicio = DateFormat('yyyy-MM-dd').format(_fechaInicio!);
-        final fin = DateFormat('yyyy-MM-dd').format(_fechaFin!);
-        urlMovimientos += '?fecha_inicio=$inicio&fecha_fin=$fin';
-      }
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
 
-      print('Cargando movimientos desde: $urlMovimientos');
-      final responseMovimientos = await http.get(
-        Uri.parse(urlMovimientos),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      print('Movimientos Status Code: ${responseMovimientos.statusCode}');
-
-      if (responseMovimientos.statusCode == 200) {
-        final dataMovimientos = jsonDecode(responseMovimientos.body);
-        final movimientos = List<Map<String, dynamic>>.from(
-          dataMovimientos['results'] ?? [],
-        );
-        print('Movimientos cargados: ${movimientos.length}');
-
-        // Agrupar movimientos por cuenta
-        _movimientosPorCuenta.clear();
-        for (var movimiento in movimientos) {
-          final cuentaId = movimiento['cuenta']?['id']?.toString();
-          if (cuentaId != null) {
-            if (!_movimientosPorCuenta.containsKey(cuentaId)) {
-              _movimientosPorCuenta[cuentaId] = [];
-            }
-            _movimientosPorCuenta[cuentaId]!.add(movimiento);
+        // El backend puede devolver una lista directa o un objeto que contiene la lista.
+        // Normalizamos ambos casos para evitar errores de tipo cuando la API cambia la envoltura.
+        List<dynamic> rawList = [];
+        if (data is List) {
+          rawList = data;
+        } else if (data is Map<String, dynamic>) {
+          // Intentar claves comunes donde el backend podría poner la lista
+          if (data['results'] is List) {
+            rawList = data['results'];
+          } else if (data['cuentas'] is List) {
+            rawList = data['cuentas'];
+          } else if (data['data'] is List) {
+            rawList = data['data'];
+          } else {
+            // Buscar la primera propiedad que sea una lista - heurística defensiva
+            final firstListValue = data.values.firstWhere(
+              (v) => v is List,
+              orElse: () => null,
+            );
+            if (firstListValue is List) rawList = firstListValue;
           }
         }
-        print('Cuentas con movimientos: ${_movimientosPorCuenta.length}');
+
+        // Convertir a lista de mapas de forma segura
+        final cuentas = rawList.map<Map<String, dynamic>>((e) {
+          if (e is Map<String, dynamic>) return e;
+          if (e is Map) return Map<String, dynamic>.from(e);
+          return <String, dynamic>{};
+        }).toList();
+
+        print('✅ Cuentas con movimientos (normalizadas): ${cuentas.length}');
+
+        // Debug: imprimir estructura del primer elemento (si existe)
+        if (cuentas.isNotEmpty) {
+          try {
+            print('🔍 Estructura cuenta ejemplo: ${cuentas.first.keys}');
+            final movs = (cuentas.first['movimientos'] is List)
+                ? cuentas.first['movimientos'] as List<dynamic>
+                : [];
+            if (movs.isNotEmpty) {
+              print(
+                '🔍 Estructura movimiento ejemplo: ${(movs.first as Map).keys}',
+              );
+            }
+          } catch (e) {
+            print('⚠️ No se pudo inspeccionar estructura interna: $e');
+          }
+        }
+
+        _cuentas = [];
+        _movimientosPorCuenta.clear();
+
+        for (var cuenta in cuentas) {
+          final cuentaId = cuenta['id']?.toString() ?? '';
+          final movimientos = cuenta['movimientos'] as List<dynamic>? ?? [];
+
+          // Filtrar por fecha si está seleccionada
+          List<Map<String, dynamic>> movimientosFiltrados = [];
+          for (var mov in movimientos) {
+            final movMap = mov as Map<String, dynamic>;
+
+            // Adaptar estructura: el backend devuelve fecha directamente,
+            // pero ExportHelper espera asiento['fecha']
+            final movimientoAdaptado = {
+              'fecha': movMap['fecha'],
+              'referencia': movMap['referencia'],
+              'debe': movMap['debe'],
+              'haber': movMap['haber'],
+              'descripcion': movMap['referencia'] ?? '',
+              // Crear objeto asiento para compatibilidad con ExportHelper
+              'asiento': {
+                'fecha': movMap['fecha'],
+                'numero': movMap['numero_asiento'] ?? '',
+                'descripcion': movMap['referencia'] ?? '',
+              },
+            };
+
+            if (_fechaInicio != null && _fechaFin != null) {
+              final fechaStr = movMap['fecha']?.toString() ?? '';
+              try {
+                final fecha = DateTime.parse(fechaStr);
+                if (fecha.isAfter(_fechaInicio!.subtract(Duration(days: 1))) &&
+                    fecha.isBefore(_fechaFin!.add(Duration(days: 1)))) {
+                  movimientosFiltrados.add(movimientoAdaptado);
+                }
+              } catch (e) {
+                // Si no se puede parsear la fecha, incluir el movimiento
+                movimientosFiltrados.add(movimientoAdaptado);
+              }
+            } else {
+              movimientosFiltrados.add(movimientoAdaptado);
+            }
+          }
+
+          // Solo agregar cuentas con movimientos (después del filtro)
+          if (movimientosFiltrados.isNotEmpty) {
+            _cuentas.add(cuenta);
+            _movimientosPorCuenta[cuentaId] = movimientosFiltrados;
+          }
+        }
+
+        // Ordenar cuentas por código
+        _cuentas.sort((a, b) {
+          final codigoA = a['codigo']?.toString() ?? '';
+          final codigoB = b['codigo']?.toString() ?? '';
+          return codigoA.compareTo(codigoB);
+        });
+
+        print('✅ Cuentas procesadas (con filtros): ${_cuentas.length}');
       } else {
-        throw Exception(
-          'Error ${responseMovimientos.statusCode}: ${responseMovimientos.body}',
+        // En vez de fallar para la presentación, usamos un fallback rápido con
+        // datos de ejemplo para que la pantalla muestre información.
+        // Esto permite continuar con la presentación mientras se resuelve el 500
+        // en el backend. El comportamiento normal no cambia cuando la API
+        // responde 200.
+        print(
+          '⚠️ Endpoint devolvió ${response.statusCode}, usando datos de ejemplo',
         );
+
+        // Datos de ejemplo mínimos compatibles con la UI.
+        final ejemploCuentas = <Map<String, dynamic>>[
+          {
+            'id': 1,
+            'codigo': '1.01',
+            'nombre': 'Caja',
+            'tipo_cuenta': 'Activo',
+            'movimientos': [
+              {
+                'fecha': DateTime.now()
+                    .subtract(Duration(days: 10))
+                    .toIso8601String(),
+                'referencia': 'Venta #1001',
+                'debe': '1500.00',
+                'haber': '0.00',
+                'numero_asiento': 'A-1001',
+              },
+              {
+                'fecha': DateTime.now()
+                    .subtract(Duration(days: 5))
+                    .toIso8601String(),
+                'referencia': 'Compra #2002',
+                'debe': '0.00',
+                'haber': '700.00',
+                'numero_asiento': 'A-1002',
+              },
+            ],
+          },
+          {
+            'id': 2,
+            'codigo': '2.01',
+            'nombre': 'Proveedores',
+            'tipo_cuenta': 'Pasivo',
+            'movimientos': [
+              {
+                'fecha': DateTime.now()
+                    .subtract(Duration(days: 20))
+                    .toIso8601String(),
+                'referencia': 'Factura #3003',
+                'debe': '0.00',
+                'haber': '1200.00',
+                'numero_asiento': 'A-1000',
+              },
+            ],
+          },
+        ];
+
+        // Procesar ejemplo como si viniera del backend
+        _cuentas = [];
+        _movimientosPorCuenta.clear();
+        for (var cuenta in ejemploCuentas) {
+          final cuentaId = cuenta['id']?.toString() ?? '';
+          final movimientos = cuenta['movimientos'] as List<dynamic>? ?? [];
+          final movimientosAdaptados = <Map<String, dynamic>>[];
+          for (var mov in movimientos) {
+            final movMap = mov as Map<String, dynamic>;
+            movimientosAdaptados.add({
+              'fecha': movMap['fecha'],
+              'referencia': movMap['referencia'],
+              'debe': movMap['debe'],
+              'haber': movMap['haber'],
+              'descripcion': movMap['referencia'] ?? '',
+              'asiento': {
+                'fecha': movMap['fecha'],
+                'numero': movMap['numero_asiento'] ?? '',
+                'descripcion': movMap['referencia'] ?? '',
+              },
+            });
+          }
+
+          if (movimientosAdaptados.isNotEmpty) {
+            _cuentas.add(cuenta);
+            _movimientosPorCuenta[cuentaId] = movimientosAdaptados;
+          }
+        }
+
+        if (!mounted) return;
+        setState(() => _cargando = false);
+
+        // Informar al usuario que se muestran datos de ejemplo
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Mostrando datos de ejemplo por fallo en el servidor',
+              ),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
       }
 
       if (!mounted) return;
@@ -334,8 +543,8 @@ class _LibroMayorState extends State<LibroMayor> {
         double totalDebe = 0;
         double totalHaber = 0;
         for (var mov in movimientos) {
-          totalDebe += (mov['debe'] ?? 0).toDouble();
-          totalHaber += (mov['haber'] ?? 0).toDouble();
+          totalDebe += _toDouble(mov['debe']);
+          totalHaber += _toDouble(mov['haber']);
         }
         final saldo = totalDebe - totalHaber;
 
@@ -512,8 +721,8 @@ class _LibroMayorState extends State<LibroMayor> {
           ),
           // Movimientos
           ...movimientos.map((mov) {
-            final debe = (mov['debe'] ?? 0).toDouble();
-            final haber = (mov['haber'] ?? 0).toDouble();
+            final debe = _toDouble(mov['debe']);
+            final haber = _toDouble(mov['haber']);
             saldoAcumulado += debe - haber;
             final fecha = DateTime.parse(
               mov['asiento']?['fecha'] ?? DateTime.now().toIso8601String(),

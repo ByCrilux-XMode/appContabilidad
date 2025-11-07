@@ -9,6 +9,17 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 class ExportHelper {
+  // Helper interno para convertir dynamic (num o String) a double de forma segura
+  static double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final s = v.replaceAll(',', '').trim();
+      return double.tryParse(s) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   // Crea un archivo temporal y lo comparte usando el panel nativo de Android.
   // El usuario puede elegir "Guardar en Archivos" o cualquier otra app para guardar.
   static Future<String?> _saveWithPicker({
@@ -811,8 +822,8 @@ class ExportHelper {
               double totalDebe = 0;
               double totalHaber = 0;
               for (var mov in movimientos) {
-                totalDebe += (mov['debe'] ?? 0).toDouble();
-                totalHaber += (mov['haber'] ?? 0).toDouble();
+                totalDebe += _toDouble(mov['debe'] ?? 0);
+                totalHaber += _toDouble(mov['haber'] ?? 0);
               }
 
               return pw.Column(
@@ -836,8 +847,8 @@ class ExportHelper {
                       data: movimientos.map((mov) {
                         return [
                           mov['cuenta']?['nombre'] ?? 'Sin cuenta',
-                          currencyFormat.format((mov['debe'] ?? 0).toDouble()),
-                          currencyFormat.format((mov['haber'] ?? 0).toDouble()),
+                          currencyFormat.format(_toDouble(mov['debe'] ?? 0)),
+                          currencyFormat.format(_toDouble(mov['haber'] ?? 0)),
                         ];
                       }).toList(),
                       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
@@ -932,8 +943,8 @@ class ExportHelper {
       double totalDebe = 0;
       double totalHaber = 0;
       for (var mov in movimientos) {
-        totalDebe += (mov['debe'] ?? 0).toDouble();
-        totalHaber += (mov['haber'] ?? 0).toDouble();
+        totalDebe += _toDouble(mov['debe'] ?? 0);
+        totalHaber += _toDouble(mov['haber'] ?? 0);
       }
 
       // Título del asiento
@@ -953,8 +964,8 @@ class ExportHelper {
       for (var mov in movimientos) {
         sheet.appendRow([
           TextCellValue(mov['cuenta']?['nombre'] ?? 'Sin cuenta'),
-          DoubleCellValue((mov['debe'] ?? 0).toDouble()),
-          DoubleCellValue((mov['haber'] ?? 0).toDouble()),
+          DoubleCellValue(_toDouble(mov['debe'] ?? 0)),
+          DoubleCellValue(_toDouble(mov['haber'] ?? 0)),
         ]);
       }
 
@@ -1070,8 +1081,8 @@ class ExportHelper {
               double totalDebe = 0;
               double totalHaber = 0;
               for (var mov in movimientos) {
-                final debe = (mov['debe'] ?? 0).toDouble();
-                final haber = (mov['haber'] ?? 0).toDouble();
+                final debe = _toDouble(mov['debe'] ?? 0);
+                final haber = _toDouble(mov['haber'] ?? 0);
                 totalDebe += debe;
                 totalHaber += haber;
               }
@@ -1102,8 +1113,8 @@ class ExportHelper {
                         final fecha = DateTime.parse(
                           mov['asiento']?['fecha'] ?? DateTime.now().toString(),
                         );
-                        final debe = (mov['debe'] ?? 0).toDouble();
-                        final haber = (mov['haber'] ?? 0).toDouble();
+                        final debe = _toDouble(mov['debe'] ?? 0);
+                        final haber = _toDouble(mov['haber'] ?? 0);
                         return [
                           dateFormat.format(fecha),
                           (mov['descripcion']?.toString().isNotEmpty == true)
@@ -1247,8 +1258,8 @@ class ExportHelper {
         final fecha = DateTime.parse(
           mov['asiento']?['fecha'] ?? DateTime.now().toString(),
         );
-        final debe = (mov['debe'] ?? 0).toDouble();
-        final haber = (mov['haber'] ?? 0).toDouble();
+        final debe = _toDouble(mov['debe'] ?? 0);
+        final haber = _toDouble(mov['haber'] ?? 0);
         saldoAcum += debe - haber;
         totalDebe += debe;
         totalHaber += haber;

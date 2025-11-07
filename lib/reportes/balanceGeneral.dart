@@ -26,6 +26,17 @@ class _BalanceGeneralState extends State<BalanceGeneral> {
   double _totalPasivo = 0;
   double _totalPatrimonio = 0;
 
+  // Convierte dynamic (num o String) a double de forma segura
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final s = v.replaceAll(',', '').trim();
+      return double.tryParse(s) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -39,112 +50,108 @@ class _BalanceGeneralState extends State<BalanceGeneral> {
     try {
       final token = await Config().obtenerDato('access');
 
-      // Cargar todas las cuentas
-      print('Cargando cuentas desde: ${Config.baseUrl}/cuenta');
-      final responseCuentas = await http.get(
-        Uri.parse('${Config.baseUrl}/cuenta'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      // Usar el endpoint específico del backend: /balance_general/
+      String urlBalanceGeneral = '${Config.baseUrl}/balance_general/';
 
-      print('Cuentas Status Code: ${responseCuentas.statusCode}');
-
-      if (responseCuentas.statusCode != 200) {
-        throw Exception(
-          'Error ${responseCuentas.statusCode}: ${responseCuentas.body}',
-        );
-      }
-
-      final dataCuentas = jsonDecode(responseCuentas.body);
-      final cuentas = List<Map<String, dynamic>>.from(
-        dataCuentas['results'] ?? [],
-      );
-      print('Cuentas cargadas: ${cuentas.length}');
-
-      // Cargar movimientos hasta la fecha de corte
-      String urlMovimientos = '${Config.baseUrl}/movimiento';
+      // Agregar parámetros de fecha
       if (_fechaCorte != null) {
-        final fecha = DateFormat('yyyy-MM-dd').format(_fechaCorte!);
-        urlMovimientos += '?fecha_hasta=$fecha';
+        final fechaInicio = '2010-01-01';
+        final fechaFin = DateFormat('yyyy-MM-dd').format(_fechaCorte!);
+        urlBalanceGeneral += '?fecha_inicio=$fechaInicio&fecha_fin=$fechaFin';
       }
 
-      print('Cargando movimientos desde: $urlMovimientos');
-      final responseMovimientos = await http.get(
-        Uri.parse(urlMovimientos),
+      print('🔍 Cargando Balance General desde: $urlBalanceGeneral');
+
+      final response = await http.get(
+        Uri.parse(urlBalanceGeneral),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
-      print('Movimientos Status Code: ${responseMovimientos.statusCode}');
+      print('📊 Balance General Status Code: ${response.statusCode}');
 
-      if (responseMovimientos.statusCode != 200) {
-        throw Exception(
-          'Error ${responseMovimientos.statusCode}: ${responseMovimientos.body}',
-        );
+      if (response.statusCode != 200) {
+        throw Exception('Error ${response.statusCode}: ${response.body}');
       }
 
-      final dataMovimientos = jsonDecode(responseMovimientos.body);
-      final movimientos = List<Map<String, dynamic>>.from(
-        dataMovimientos['results'] ?? [],
-      );
-      print('Movimientos cargados: ${movimientos.length}');
+      // El backend devuelve lista de clases raíz con estructura anidada
+      final data = jsonDecode(response.body);
+      final clases = List<Map<String, dynamic>>.from(data);
 
-      // Calcular saldos por cuenta
-      Map<String, double> saldosPorCuenta = {};
-      for (var movimiento in movimientos) {
-        final cuentaId = movimiento['cuenta']?['id']?.toString();
-        if (cuentaId != null) {
-          if (!saldosPorCuenta.containsKey(cuentaId)) {
-            saldosPorCuenta[cuentaId] = 0;
-          }
-          final debe = (movimiento['debe'] ?? 0).toDouble();
-          final haber = (movimiento['haber'] ?? 0).toDouble();
-          saldosPorCuenta[cuentaId] = saldosPorCuenta[cuentaId]! + debe - haber;
-        }
-      }
+      print('✅ Clases recibidas: ${clases.length}');
 
-      // Clasificar cuentas y calcular totales
-      _cuentasPorTipo = {'Activo': [], 'Pasivo': [], 'Patrimonio': []};
-      _totalActivo = 0;
-      _totalPasivo = 0;
-      _totalPatrimonio = 0;
+      // Separar por tipo y aplanar la estructura
+      Map<String, List<Map<String, dynamic>>> cuentasPorTipo = {
+        'Activo': [],
+        'Pasivo': [],
+        'Patrimonio': [],
+      };
 
-      for (var cuenta in cuentas) {
-        final cuentaId = cuenta['id'].toString();
-        final saldo = saldosPorCuenta[cuentaId] ?? 0;
+      double totalActivo = 0;
+      double totalPasivo = 0;
+      double totalPatrimonio = 0;
 
-        // Solo incluir cuentas con saldo diferente de cero
-        if (saldo.abs() > 0.01) {
-          final tipoCuenta =
-              cuenta['tipo_cuenta']?.toString().toLowerCase() ?? '';
-          final cuentaConSaldo = {...cuenta, 'saldo': saldo};
+      // Función recursiva para aplanar hijos
+      void agregarCuentasRecursivo(Map<String, dynamic> nodo, String tipo) {
+        final codigo = nodo['codigo']?.toString() ?? '';
+        final nombre = nodo['nombre']?.toString() ?? '';
+        final saldo = _toDouble(nodo['saldo']);
+        final totalDebe = _toDouble(nodo['total_debe']);
+        final totalHaber = _toDouble(nodo['total_haber']);
 
-          if (tipoCuenta.contains('activo')) {
-            _cuentasPorTipo['Activo']!.add(cuentaConSaldo);
-            _totalActivo += saldo.abs();
-          } else if (tipoCuenta.contains('pasivo')) {
-            _cuentasPorTipo['Pasivo']!.add(cuentaConSaldo);
-            _totalPasivo += saldo.abs();
-          } else if (tipoCuenta.contains('patrimonio') ||
-              tipoCuenta.contains('capital')) {
-            _cuentasPorTipo['Patrimonio']!.add(cuentaConSaldo);
-            _totalPatrimonio += saldo.abs();
+        // Crear cuenta para la lista
+        final cuenta = {
+          'codigo': codigo,
+          'nombre': nombre,
+          'saldo': saldo,
+          'total_debe': totalDebe,
+          'total_haber': totalHaber,
+        };
+
+        cuentasPorTipo[tipo]!.add(cuenta);
+
+        // Procesar hijos recursivamente
+        final hijos = nodo['hijos'] as List<dynamic>?;
+        if (hijos != null) {
+          for (var hijo in hijos) {
+            agregarCuentasRecursivo(hijo as Map<String, dynamic>, tipo);
           }
         }
       }
 
-      // Ordenar cuentas por código
-      for (var lista in _cuentasPorTipo.values) {
-        lista.sort((a, b) {
-          final codigoA = a['codigo']?.toString() ?? '';
-          final codigoB = b['codigo']?.toString() ?? '';
-          return codigoA.compareTo(codigoB);
-        });
+      for (var clase in clases) {
+        final codigo = clase['codigo']?.toString() ?? '';
+        final saldo = _toDouble(clase['saldo']);
+        final saldoAbs = saldo.abs();
+
+        // Log diagnóstico: saldo crudo y su magnitud
+        print('Clase: $codigo, Saldo crudo: $saldo, Saldo abs: $saldoAbs');
+
+        // Determinar tipo por código (1=Activo, 2=Pasivo, 3=Patrimonio)
+        // Para el resumen queremos la magnitud positiva de cada grupo
+        if (codigo.startsWith('1')) {
+          totalActivo += saldoAbs;
+          agregarCuentasRecursivo(clase, 'Activo');
+        } else if (codigo.startsWith('2')) {
+          totalPasivo += saldoAbs;
+          agregarCuentasRecursivo(clase, 'Pasivo');
+        } else if (codigo.startsWith('3')) {
+          totalPatrimonio += saldoAbs;
+          agregarCuentasRecursivo(clase, 'Patrimonio');
+        }
       }
+
+      // Actualizar estado
+      _cuentasPorTipo = cuentasPorTipo;
+      _totalActivo = totalActivo;
+      _totalPasivo = totalPasivo;
+      _totalPatrimonio = totalPatrimonio;
+
+      print('✅ Total Activo: $_totalActivo');
+      print('✅ Total Pasivo: $_totalPasivo');
+      print('✅ Total Patrimonio: $_totalPatrimonio');
 
       if (!mounted) return;
       setState(() => _cargando = false);
@@ -377,7 +384,7 @@ class _BalanceGeneralState extends State<BalanceGeneral> {
             )
           else
             ...cuentas.map((cuenta) {
-              final saldo = (cuenta['saldo'] ?? 0).toDouble();
+              final saldo = _toDouble(cuenta['saldo']);
               return ListTile(
                 dense: true,
                 title: Text(
