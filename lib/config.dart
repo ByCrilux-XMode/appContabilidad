@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 class Config { //si estamos en desarrollo usar #http://10.0.2.2:8080 para cloud #https://contaback-393159630636.northamerica-south1.run.app
 
-  static const String baseUrl = "https://contaback-393159630636.northamerica-south1.run.app";
+  static const String baseUrl = "https://django-conta.onrender.com";
 
   Future<void> GuardarAlgunDato(String clave,dynamic valor) async{
     final dato = await SharedPreferences.getInstance();
